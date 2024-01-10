@@ -1,0 +1,94 @@
+{
+	"name": "dataflowMovies",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_csv_adls",
+						"type": "DatasetReference"
+					},
+					"name": "ADLSMovies"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_sql_movies",
+						"type": "DatasetReference"
+					},
+					"name": "AzureSQL"
+				}
+			],
+			"transformations": [
+				{
+					"name": "SelectColumns"
+				},
+				{
+					"name": "YearMorethan1950"
+				},
+				{
+					"name": "PrimaryGenre"
+				},
+				{
+					"name": "PrimaryGenreYear"
+				},
+				{
+					"name": "AggregateRating"
+				},
+				{
+					"name": "UpsertRecords"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          movie as string,",
+				"          title as string,",
+				"          genres as string,",
+				"          year as string,",
+				"          Rating as string,",
+				"          {Rotton Tomato} as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> ADLSMovies",
+				"ADLSMovies select(mapColumn(",
+				"          movie,",
+				"          title,",
+				"          genres,",
+				"          year,",
+				"          {Rotten Tomato} = {Rotton Tomato}",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectColumns",
+				"SelectColumns filter(toInteger(year)>1950) ~> YearMorethan1950",
+				"YearMorethan1950 derive(PrimaryGenres = iif(locate('|',genres)>1,left(genres,locate('|',genres)-1),genres)) ~> PrimaryGenre",
+				"PrimaryGenre window(over(PrimaryGenres,",
+				"          year),",
+				"     desc({Rotten Tomato}, true),",
+				"     PrimaryGenreRank = rank()) ~> PrimaryGenreYear",
+				"PrimaryGenreYear aggregate(groupBy(PrimaryGenres,",
+				"          year),",
+				"     AverageRating = avg(toInteger({Rotten Tomato})),",
+				"          HighestRating = max(toInteger({Rotten Tomato})),",
+				"          LowestRating = min(toInteger({Rotten Tomato})),",
+				"          NoOfMovies = count(),",
+				"          HighestRatedMovies = first(title),",
+				"          LowestRatedMovies = last(title)) ~> AggregateRating",
+				"AggregateRating alterRow(upsertIf(true())) ~> UpsertRecords",
+				"UpsertRecords sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:false,",
+				"     upsertable:true,",
+				"     keys:['PrimaryGenres','year'],",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> AzureSQL"
+			]
+		}
+	}
+}

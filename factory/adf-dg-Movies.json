@@ -1,0 +1,9 @@
+{
+	"name": "adf-dg-Movies",
+	"location": "centralindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "1a0f3bec-840f-44ad-a141-37eca8729361",
+		"tenantId": "93f748da-a9a6-4c83-b39f-dc353b4b98ef"
+	}
+}
